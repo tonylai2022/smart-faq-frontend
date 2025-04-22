@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string
+// Fallback to localhost for local dev
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"
 
 export default function Home() {
   const [question, setQuestion] = useState("")
@@ -8,6 +9,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState("")
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
+
+  useEffect(() => {
+    console.log("✅ Using backend:", BACKEND_URL)
+    fetchUploadedFiles()
+  }, [])
 
   const askQuestion = async () => {
     setLoading(true)
@@ -76,10 +82,6 @@ export default function Home() {
     const data = await res.json()
     setUploadedFiles(data.files)
   }
-
-  useEffect(() => {
-    fetchUploadedFiles()
-  }, [])
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
