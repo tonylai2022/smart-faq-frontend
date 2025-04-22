@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string
+
 export default function Home() {
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
@@ -11,7 +13,7 @@ export default function Home() {
     setLoading(true)
     setAnswer("")
 
-    const res = await fetch("http://localhost:5000/chat", {
+    const res = await fetch(`${BACKEND_URL}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
@@ -46,7 +48,7 @@ export default function Home() {
       const formData = new FormData()
       formData.append("file", file)
 
-      const res = await fetch("http://localhost:5000/upload", {
+      const res = await fetch(`${BACKEND_URL}/upload`, {
         method: "POST",
         body: formData,
       })
@@ -63,14 +65,14 @@ export default function Home() {
     const confirmClear = window.confirm("Are you sure you want to clear all embedded memory?")
     if (!confirmClear) return
 
-    await fetch("http://localhost:5000/reset", { method: "POST" })
+    await fetch(`${BACKEND_URL}/reset`, { method: "POST" })
     setUploadStatus("🗑️ Memory cleared.")
     setAnswer("")
     setUploadedFiles([])
   }
 
   const fetchUploadedFiles = async () => {
-    const res = await fetch("http://localhost:5000/files")
+    const res = await fetch(`${BACKEND_URL}/files`)
     const data = await res.json()
     setUploadedFiles(data.files)
   }
@@ -92,9 +94,7 @@ export default function Home() {
             onChange={uploadFiles}
             className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
-          {uploadStatus && (
-            <div className="text-green-600 font-medium">{uploadStatus}</div>
-          )}
+          {uploadStatus && <div className="text-green-600 font-medium">{uploadStatus}</div>}
           {uploadedFiles.length > 0 && (
             <div className="text-sm text-gray-600">
               <strong>Uploaded Files:</strong>
