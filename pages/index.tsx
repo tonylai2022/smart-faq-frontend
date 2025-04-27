@@ -1,10 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
-// Fallback to localhost for local dev
+// Correct fallback
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
-console.log("✅ Backend URL:", process.env.NEXT_PUBLIC_BACKEND_URL)
-
-
+console.log("✅ Backend URL:", BACKEND_URL)
 
 export default function Home() {
   const [question, setQuestion] = useState("")
@@ -13,36 +11,54 @@ export default function Home() {
   const [uploadStatus, setUploadStatus] = useState("")
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
 
+  const answerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     console.log("✅ Using backend:", BACKEND_URL)
     fetchUploadedFiles()
   }, [])
 
+  useEffect(() => {
+    if (answerRef.current) {
+      answerRef.current.scrollTop = answerRef.current.scrollHeight
+    }
+  }, [answer])
+
   const askQuestion = async () => {
     setLoading(true)
     setAnswer("")
 
-    const res = await fetch(`${BACKEND_URL}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
-    })
+    try {
+      const res = await fetch(`${BACKEND_URL}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      })
 
-    if (!res.body) {
-      setAnswer("❌ No response stream.")
-      setLoading(false)
-      return
-    }
+      const contentType = res.headers.get("content-type")
 
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder("utf-8")
+      if (contentType && contentType.includes("application/json")) {
+        // DeepSeek returns JSON
+        const data = await res.json()
+        setAnswer(data.answer || "❌ No answer received.")
+      } else if (res.body) {
+        // TogetherAI returns streaming
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder("utf-8")
 
-    let done = false
-    while (!done) {
-      const { value, done: doneReading } = await reader.read()
-      done = doneReading
-      const chunk = decoder.decode(value || new Uint8Array(), { stream: true })
-      setAnswer((prev) => prev + chunk)
+        let done = false
+        while (!done) {
+          const { value, done: doneReading } = await reader.read()
+          done = doneReading
+          const chunk = decoder.decode(value || new Uint8Array(), { stream: true })
+          setAnswer((prev) => prev + chunk)
+        }
+      } else {
+        setAnswer("❌ No valid response.")
+      }
+    } catch (err) {
+      console.error("❌ Error asking question:", err)
+      setAnswer("❌ Failed to get response.")
     }
 
     setLoading(false)
@@ -138,7 +154,10 @@ export default function Home() {
         </div>
 
         {answer && (
-          <div className="bg-gray-50 p-4 rounded border border-gray-200 mt-4">
+          <div
+            ref={answerRef}
+            className="bg-gray-50 p-4 rounded border border-gray-200 mt-4 max-h-96 overflow-y-auto"
+          >
             <h2 className="text-lg font-semibold mb-2 text-gray-800">Answer:</h2>
             <p className="whitespace-pre-line text-gray-700">{answer}</p>
           </div>
