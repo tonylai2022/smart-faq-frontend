@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
-// Correct fallback
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
-console.log("✅ Backend URL:", BACKEND_URL)
+// ✅ Use the proxy endpoint directly
+const PROXY_URL = "/api/proxy"
 
 export default function Home() {
   const [question, setQuestion] = useState("")
@@ -14,7 +13,7 @@ export default function Home() {
   const answerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    console.log("✅ Using backend:", BACKEND_URL)
+    console.log("✅ Using proxy:", PROXY_URL)
     fetchUploadedFiles()
   }, [])
 
@@ -29,7 +28,7 @@ export default function Home() {
     setAnswer("")
 
     try {
-      const res = await fetch(`${BACKEND_URL}/chat`, {
+      const res = await fetch(`${PROXY_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
@@ -38,11 +37,9 @@ export default function Home() {
       const contentType = res.headers.get("content-type")
 
       if (contentType && contentType.includes("application/json")) {
-        // DeepSeek returns JSON
         const data = await res.json()
         setAnswer(data.answer || "❌ No answer received.")
       } else if (res.body) {
-        // TogetherAI returns streaming
         const reader = res.body.getReader()
         const decoder = new TextDecoder("utf-8")
 
@@ -73,7 +70,7 @@ export default function Home() {
       const formData = new FormData()
       formData.append("file", file)
 
-      const res = await fetch(`${BACKEND_URL}/upload`, {
+      const res = await fetch(`${PROXY_URL}/upload`, {
         method: "POST",
         body: formData,
       })
@@ -90,14 +87,14 @@ export default function Home() {
     const confirmClear = window.confirm("Are you sure you want to clear all embedded memory?")
     if (!confirmClear) return
 
-    await fetch(`${BACKEND_URL}/reset`, { method: "POST" })
+    await fetch(`${PROXY_URL}/reset`, { method: "POST" })
     setUploadStatus("🗑️ Memory cleared.")
     setAnswer("")
     setUploadedFiles([])
   }
 
   const fetchUploadedFiles = async () => {
-    const res = await fetch(`${BACKEND_URL}/files`)
+    const res = await fetch(`${PROXY_URL}/files`)
     const data = await res.json()
     setUploadedFiles(data.files)
   }
