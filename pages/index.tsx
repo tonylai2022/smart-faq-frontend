@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
-// ✅ Use the proxy endpoint directly
-const PROXY_URL = "/api/proxy"
+const PROXY_URL = "/api"
 
 export default function Home() {
   const [question, setQuestion] = useState("")
