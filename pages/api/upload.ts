@@ -3,16 +3,13 @@ import formidable from "formidable";
 import fs from "fs";
 import path from "path";
 import pdfParse from "pdf-parse";
+import { chunkText } from "../../utils/chunkText"; // 記得要 ultra fine
+import { embedTexts } from "../../utils/embedding";
+import type { Memory } from "../../utils/search_docs";
 
-// Tell Next.js not to use default body parser
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
+export const config = { api: { bodyParser: false } };
 
-let memoryChunks: string[] = [];
-let uploadedFiles: string[] = [];
+let memories: Memory[] = [];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
@@ -20,47 +17,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const uploadDir = path.join(process.cwd(), "/uploads");
+    const cacheDir = path.join(process.cwd(), "/cache");
     fs.mkdirSync(uploadDir, { recursive: true });
+    fs.mkdirSync(cacheDir, { recursive: true });
 
     const form = formidable({ uploadDir, keepExtensions: true });
 
-    form.parse(req, async (err, fields: any, files: any) => {
+    form.parse(req, async (err, fields, files) => {
         if (err) {
             console.error(err);
-            return res.status(500).json({ error: "Upload failed." });
+            return res.status(500).json({ error: "Upload failed" });
         }
 
         const uploaded = Array.isArray(files.file) ? files.file[0] : files.file;
-
         if (!uploaded) {
-            return res.status(400).json({ error: "Invalid file upload." });
+            return res.status(400).json({ error: "Invalid file upload" });
         }
 
-        const filePath = uploaded.filepath;
-        const originalFilename = uploaded.originalFilename || "unknown.pdf";
+        const fileBuffer = fs.readFileSync(uploaded.filepath);
+        const pdfData = await pdfParse(fileBuffer);
 
-        if (!filePath) {
-            return res.status(400).json({ error: "Filepath missing." });
-        }
+        const cleanedText = pdfData.text
+            .replace(/[\t\r]+/g, "\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
 
-        const fileBuffer = fs.readFileSync(filePath);
+        const chunks = chunkText(cleanedText, 400, 50); 
+        console.log(`🔵 Chunks Preview (${chunks.length}):`);
+        chunks.forEach((chunk, idx) => {
+            console.log(`Chunk ${idx + 1}:`, chunk.slice(0, 30), "...");
+        });
 
-        let extractedText = "";
-        try {
-            const pdfData = await pdfParse(fileBuffer);
-            extractedText = pdfData.text;
-        } catch (parseErr) {
-            console.error("PDF Parse Error:", parseErr);
-            return res.status(500).json({ error: "Failed to parse PDF" });
-        }
+        memories = [];
 
-        const chunks = extractedText.match(/.{1,300}/g) || [];
+        const embeddings = await embedTexts(chunks);
 
-        memoryChunks.push(...chunks);
-        uploadedFiles.push(originalFilename);
+        memories = chunks.map((text, idx) => ({
+            text,
+            embedding: embeddings[idx],
+        }));
 
-        res.status(200).json({ message: "File uploaded and parsed", chunks: chunks.length });
+        const cachePath = path.join(cacheDir, `${uploaded.newFilename}.json`);
+        fs.writeFileSync(cachePath, JSON.stringify(memories, null, 2));
+
+        // ✅ 另外保存最新記憶
+        fs.writeFileSync(path.join(cacheDir, "latest.json"), JSON.stringify(memories, null, 2));
+
+        res.status(200).json({ message: "✅ 檔案已上傳並處理完成！", chunks: memories.length });
     });
 }
 
-export { memoryChunks, uploadedFiles };
+export { memories };

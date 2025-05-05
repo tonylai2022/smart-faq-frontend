@@ -1,7 +1,27 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import fs from "fs";
+import path from "path";
+import { searchDocs } from "../../utils/search_docs";
+import { embedQuestion } from "../../utils/embedding";
+import type { Memory } from "../../utils/search_docs";
 
-// In-memory chat history
-let chatHistory: { role: "user" | "assistant"; content: string }[] = [];
+let conversationHistory: { role: "user" | "assistant"; content: string }[] = [];
+
+// 讀取記憶
+function loadMemories(): Memory[] {
+    try {
+        const cachePath = path.join(process.cwd(), "cache", "latest.json");
+        if (fs.existsSync(cachePath)) {
+            const data = fs.readFileSync(cachePath, "utf8");
+            return JSON.parse(data) as Memory[];
+        }
+        console.warn("⚠️ No memory cache found.");
+        return [];
+    } catch (err) {
+        console.error("❌ Failed to load memories:", err);
+        return [];
+    }
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
@@ -9,37 +29,108 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const { question } = req.body;
+    if (!question || typeof question !== "string") {
+        return res.status(400).json({ error: "❌ Question is required." });
+    }
+
+    if (!process.env.DEEPSEEK_API_KEY) {
+        return res.status(500).json({ error: "❌ Missing DeepSeek API Key." });
+    }
+
+    const memories = loadMemories();
+    if (!memories || memories.length === 0) {
+        return res.status(400).json({ error: "❌ 尚未上傳資料，請先上傳 PDF。" });
+    }
 
     try {
-        // Add user's latest question to history
-        chatHistory.push({ role: "user", content: question });
+        const queryEmbedding = await embedQuestion(question);
 
-        const deepseekRes = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        const topK = 5;
+        const relatedChunks = searchDocs(queryEmbedding, memories, topK, 0.4); // 可自己調
+        const relatedContext = relatedChunks.length > 0
+            ? relatedChunks.join("\n\n")
+            : "（找不到明確資料，請根據常識推測）";
+
+        conversationHistory.push({ role: "user", content: question });
+
+        const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+                Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
                 model: "deepseek-chat",
+                temperature: 0.3,
                 messages: [
-                    { role: "system", content: "You are a chatbot assistant. Always answer very concisely and clearly in 1-2 sentences." },
-                    ...chatHistory,  // <== 📚 include all history!
+                    {
+                        role: "system",
+                        content: `
+你是中文專業文件助理。
+以下是找到的相關資料：
+------
+${relatedContext}
+------
+請盡可能根據資料，用簡潔中文回答用戶問題。
+如果資料不足，可合理推測，但請標明推測。
+如果完全無資料，請回答：「根據目前資料，無法找到確切資訊。」`
+                    },
+                    ...conversationHistory,
                 ],
-                temperature: 0.3,  // lower temperature = more focused and consistent
-                stream: false,
             }),
         });
 
-        const data = await deepseekRes.json();
-        const answer = data.choices?.[0]?.message?.content || "❌ No answer.";
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error("❌ DeepSeek API Error:", errText);
+            return res.status(500).json({ error: "❌ Failed to fetch from DeepSeek." });
+        }
 
-        // Add assistant's reply to history too
-        chatHistory.push({ role: "assistant", content: answer });
+        const data = await response.json();
+                // Process the raw answer
+        let rawAnswer = data.choices?.[0]?.message?.content?.trim() || "❌ No answer.";
 
-        res.status(200).json({ answer });
+        // 多層解析直到是純文字
+        try {
+            let parsed: any = JSON.parse(rawAnswer);
+            while (typeof parsed === "object" && parsed !== null && "answer" in parsed) {
+                parsed = parsed.answer;
+                if (typeof parsed === "string") {
+                    try {
+                        parsed = JSON.parse(parsed);
+                    } catch {
+                        // 如果不能再 parse，代表是純文字
+                        rawAnswer = parsed;
+                        break;
+                    }
+                }
+            }
+        } catch {
+            // 不是 JSON，保留原本
+        }
+
+        // 清理格式
+        const cleanAnswer = rawAnswer
+            .replace(/\\n/g, '\n')    // \n 變成真換行
+            .replace(/\*\*/g, '')     // 移除粗體標記 **
+            .replace(/\s+\n/g, '\n')  // 多餘空白
+            .trim();
+
+        const answer = cleanAnswer;
+
+
+
+        conversationHistory.push({ role: "assistant", content: answer });
+
+        // 防止記憶暴衝
+        if (conversationHistory.length > 10) {
+            conversationHistory = conversationHistory.slice(-10);
+        }
+
+        return res.status(200).json({ answer });
+
     } catch (err) {
-        console.error("DeepSeek API Error:", err);
-        res.status(500).json({ error: "Failed to fetch answer." });
+        console.error("❌ Unexpected Chat Error:", err);
+        return res.status(500).json({ error: "❌ Unexpected server error." });
     }
 }

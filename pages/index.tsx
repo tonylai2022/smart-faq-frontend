@@ -1,164 +1,190 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react";
 
-const PROXY_URL = "/api"
+const PROXY_URL = "/api";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
 
 export default function Home() {
-  const [question, setQuestion] = useState("")
-  const [answer, setAnswer] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [uploadStatus, setUploadStatus] = useState("")
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
 
-  const answerRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 🧹 初始化：讀 localStorage 聊天紀錄
   useEffect(() => {
-    console.log("✅ Using proxy:", PROXY_URL)
-    fetchUploadedFiles()
-  }, [])
+    console.log("✅ Using proxy:", PROXY_URL);
+    const saved = localStorage.getItem("chatMessages");
+    if (saved) setMessages(JSON.parse(saved));
+  }, []);
 
+  // 📦 聊天紀錄更新 ➔ 自動存 localStorage
   useEffect(() => {
-    if (answerRef.current) {
-      answerRef.current.scrollTop = answerRef.current.scrollHeight
+    if (messages.length > 0) {
+      localStorage.setItem("chatMessages", JSON.stringify(messages));
     }
-  }, [answer])
+    scrollToBottom();
+  }, [messages]);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // 🧠 問問題
   const askQuestion = async () => {
-    setLoading(true)
-    setAnswer("")
+    if (!question.trim()) return;
+
+    const userMsg: Message = { role: "user", content: question };
+    setMessages(prev => [...prev, userMsg]);
+    setQuestion("");
+    setLoading(true);
 
     try {
       const res = await fetch(`${PROXY_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
-      })
+        body: JSON.stringify({ question: userMsg.content }),
+      });
 
-      const contentType = res.headers.get("content-type")
+      if (res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let done = false;
+        let assistantContent = "";
 
-      if (contentType && contentType.includes("application/json")) {
-        const data = await res.json()
-        setAnswer(data.answer || "❌ No answer received.")
-      } else if (res.body) {
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder("utf-8")
-
-        let done = false
         while (!done) {
-          const { value, done: doneReading } = await reader.read()
-          done = doneReading
-          const chunk = decoder.decode(value || new Uint8Array(), { stream: true })
-          setAnswer((prev) => prev + chunk)
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          const chunk = decoder.decode(value || new Uint8Array(), { stream: true });
+          assistantContent += chunk;
+
+          setMessages(prev => {
+            const updated = [...prev];
+            if (updated[updated.length - 1]?.role === "assistant") {
+              updated[updated.length - 1].content = assistantContent;
+            } else {
+              updated.push({ role: "assistant", content: assistantContent });
+            }
+            return updated;
+          });
         }
       } else {
-        setAnswer("❌ No valid response.")
+        const data = await res.json();
+        setMessages(prev => [...prev, { role: "assistant", content: data.answer || "❌ No answer received." }]);
       }
     } catch (err) {
-      console.error("❌ Error asking question:", err)
-      setAnswer("❌ Failed to get response.")
+      console.error("❌ Ask error:", err);
+      setMessages(prev => [...prev, { role: "assistant", content: "❌ Failed to get response." }]);
     }
 
-    setLoading(false)
-  }
+    setLoading(false);
+  };
 
-  const uploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
+  // 📥 上傳PDF
+  const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    let totalChunks = 0
-    for (const file of files) {
-      const formData = new FormData()
-      formData.append("file", file)
+    setUploadStatus("🚀 Uploading...");
+    const formData = new FormData();
+    formData.append("file", files[0]);
 
+    try {
       const res = await fetch(`${PROXY_URL}/upload`, {
         method: "POST",
         body: formData,
-      })
+      });
 
-      const result = await res.json()
-      totalChunks += result.chunks
+      const result = await res.json();
+      setUploadStatus(`✅ 檔案已上傳，切成 ${result.chunks} 段！`);
+    } catch (err) {
+      console.error("❌ Upload error:", err);
+      setUploadStatus("❌ Upload failed.");
     }
+  };
 
-    setUploadStatus(`✅ ${files.length} file(s) uploaded. ${totalChunks} chunks embedded.`)
-    fetchUploadedFiles()
-  }
+  // 🗑️ 清除聊天 + 記憶體
+  const clearHistory = async () => {
+    const confirm = window.confirm("確定要清除聊天記錄與記憶體嗎？");
+    if (!confirm) return;
 
-  const clearMemory = async () => {
-    const confirmClear = window.confirm("Are you sure you want to clear all embedded memory?")
-    if (!confirmClear) return
+    localStorage.removeItem("chatMessages");
+    setMessages([]);
 
-    await fetch(`${PROXY_URL}/reset`, { method: "POST" })
-    setUploadStatus("🗑️ Memory cleared.")
-    setAnswer("")
-    setUploadedFiles([])
-  }
-
-  const fetchUploadedFiles = async () => {
-    const res = await fetch(`${PROXY_URL}/files`)
-    const data = await res.json()
-    setUploadedFiles(data.files)
-  }
+    try {
+      await fetch(`${PROXY_URL}/reset`, { method: "POST" });
+      setUploadStatus("🗑️ Memory cleared.");
+    } catch (err) {
+      console.error("❌ Failed to reset memory:", err);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-2xl mx-auto bg-white shadow-xl rounded-lg p-6 space-y-4">
-        <h1 className="text-3xl font-bold text-center text-blue-600">Smart FAQ Assistant</h1>
+    <div className="min-h-screen bg-gray-100 p-6 flex flex-col items-center">
+      <div className="w-full max-w-2xl bg-white shadow-xl rounded-lg p-6 flex flex-col space-y-4">
+        <h1 className="text-3xl font-bold text-center text-blue-600">中文智能文件助理</h1>
 
+        {/* Upload Area */}
         <div className="space-y-2">
           <input
             type="file"
-            accept=".txt,.pdf,.docx"
-            multiple
-            onChange={uploadFiles}
+            accept=".pdf"
+            onChange={uploadFile}
             className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
-          {uploadStatus && <div className="text-green-600 font-medium">{uploadStatus}</div>}
-          {uploadedFiles.length > 0 && (
-            <div className="text-sm text-gray-600">
-              <strong>Uploaded Files:</strong>
-              <ul className="list-disc ml-5">
-                {uploadedFiles.map((file, idx) => (
-                  <li key={idx}>{file}</li>
-                ))}
-              </ul>
+          {uploadStatus && (
+            <div className="text-sm text-green-600">{uploadStatus}</div>
+          )}
+        </div>
+
+        {/* Clear Button */}
+        <button
+          onClick={clearHistory}
+          className="px-4 py-2 bg-white text-red-600 border border-red-400 rounded hover:bg-red-100 transition font-semibold"
+        >
+          🗑️ 清除聊天記錄與記憶體
+        </button>
+
+        {/* Chat Window */}
+        <div className="flex flex-col space-y-3 p-4 bg-gray-50 rounded-md border border-gray-200 max-h-[400px] overflow-y-auto">
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`px-4 py-2 rounded-2xl shadow-md max-w-xs ${msg.role === "user" ? "self-end bg-blue-200" : "self-start bg-gray-200"
+                }`}
+            >
+              {msg.content}
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+          {loading && (
+            <div className="self-start bg-gray-200 px-4 py-2 rounded-2xl shadow-md max-w-xs animate-pulse">
+              載入中...
             </div>
           )}
         </div>
 
+        {/* Input Area */}
         <textarea
           className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring focus:ring-blue-200"
-          rows={4}
+          rows={2}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask a question based on your uploaded documents..."
+          placeholder="請輸入你的問題..."
         />
 
-        <div className="flex flex-wrap gap-3">
-          <button
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            onClick={askQuestion}
-            disabled={loading}
-          >
-            {loading ? "Asking..." : "Ask"}
-          </button>
-
-          <button
-            className="flex-1 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={clearMemory}
-          >
-            Clear Memory
-          </button>
-        </div>
-
-        {answer && (
-          <div
-            ref={answerRef}
-            className="bg-gray-50 p-4 rounded border border-gray-200 mt-4 max-h-96 overflow-y-auto"
-          >
-            <h2 className="text-lg font-semibold mb-2 text-gray-800">Answer:</h2>
-            <p className="whitespace-pre-line text-gray-700">{answer}</p>
-          </div>
-        )}
+        <button
+          className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          onClick={askQuestion}
+          disabled={loading}
+        >
+          {loading ? "搜尋中..." : "提問"}
+        </button>
       </div>
     </div>
-  )
+  );
 }
