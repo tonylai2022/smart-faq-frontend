@@ -168,10 +168,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
-      <div className="w-full max-w-2xl bg-white shadow-xl rounded-lg p-6 flex flex-col space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-center text-blue-800">{t('welcome')}</h1>
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-6 flex flex-col items-center">
+      <div className="w-full max-w-full sm:max-w-6xl bg-white shadow-xl rounded-lg p-2 sm:p-6 flex flex-col space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-center text-blue-800 flex-1">{t('welcome')}</h1>
           <LanguageSwitcher />
         </div>
 
@@ -208,7 +208,7 @@ export default function Home() {
         </div>
 
         {/* Clear Buttons */}
-        <div className="flex space-x-4">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
           <button
             onClick={clearMemory}
             className="flex-1 px-4 py-3 border-2 border-red-700 text-red-700 bg-white rounded font-bold text-lg flex items-center justify-center space-x-2 hover:bg-red-50 transition"
@@ -226,11 +226,13 @@ export default function Home() {
         </div>
 
         {/* Chat Window */}
-        <div className="flex flex-col space-y-3 p-4 bg-gray-100 rounded-md border border-gray-300 max-h-[400px] overflow-y-auto">
+        <div className="flex flex-col space-y-3 p-2 sm:p-4 bg-gray-100 rounded-md border border-gray-300 h-[50vh] min-h-[250px] max-h-[60vh] overflow-y-auto w-full">
           {messages.map((msg, idx) => (
             <div
               key={idx}
-              className={`px-4 py-2 rounded-2xl shadow-md max-w-xs ${msg.role === "user" ? "self-end bg-blue-100 text-blue-900" : "self-start bg-gray-200 text-gray-900"
+              className={`px-3 py-2 rounded-2xl shadow-md w-fit max-w-full sm:max-w-2xl break-words ${msg.role === "user"
+                ? "self-end bg-blue-100 text-blue-900 ml-auto"
+                : "self-start bg-gray-200 text-gray-900 mr-auto"
                 }`}
             >
               {msg.content}
@@ -238,7 +240,7 @@ export default function Home() {
           ))}
           <div ref={messagesEndRef} />
           {loading && (
-            <div className="self-start bg-gray-200 px-4 py-2 rounded-2xl shadow-md max-w-xs animate-pulse text-gray-900">
+            <div className="self-start bg-gray-200 px-4 py-2 rounded-2xl shadow-md w-fit max-w-full sm:max-w-2xl animate-pulse text-gray-900">
               {t('loading')}
             </div>
           )}
@@ -246,25 +248,22 @@ export default function Home() {
 
         {/* Input Area */}
         <textarea
-          className="w-full border border-gray-400 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-blue-300 text-gray-900"
+          className="w-full border border-gray-400 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-blue-300 text-gray-900 resize-none"
           rows={2}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder={t('questionPlaceholder')}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (!loading && question.trim()) {
-                askQuestion();
-              }
+              askQuestion();
             }
           }}
+          placeholder={t('askQuestion')}
         />
-
         <button
-          className="w-full px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 disabled:opacity-50 font-semibold"
           onClick={askQuestion}
           disabled={loading}
+          className="w-full py-3 bg-blue-600 text-white rounded-md font-bold text-lg hover:bg-blue-700 disabled:bg-blue-400 transition"
         >
           {loading ? t('loading') : t('ask')}
         </button>
