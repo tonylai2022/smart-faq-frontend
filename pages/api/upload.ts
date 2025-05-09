@@ -17,6 +17,32 @@ export const config = {
 
 // Use a temporary directory for file processing
 const TEMP_DIR = '/tmp';
+const FILES_LIST_PATH = path.join(process.cwd(), "cache", "files.json");
+
+function getUploadedFiles(): string[] {
+    try {
+        if (fs.existsSync(FILES_LIST_PATH)) {
+            const data = fs.readFileSync(FILES_LIST_PATH, "utf8");
+            return JSON.parse(data);
+        }
+        return [];
+    } catch (err) {
+        console.error("Failed to read files list:", err);
+        return [];
+    }
+}
+
+function saveUploadedFiles(files: string[]) {
+    try {
+        const cacheDir = path.join(process.cwd(), "cache");
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+        fs.writeFileSync(FILES_LIST_PATH, JSON.stringify(files, null, 2));
+    } catch (err) {
+        console.error("Failed to save files list:", err);
+    }
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
@@ -47,6 +73,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(400).json({ error: "Invalid file upload" });
         }
 
+        const filename = uploaded.originalFilename || uploaded.newFilename;
+
+        // Update the files list
+        const currentFiles = getUploadedFiles();
+        if (!currentFiles.includes(filename)) {
+            currentFiles.push(filename);
+            saveUploadedFiles(currentFiles);
+        }
+
         const fileBuffer = fs.readFileSync(uploaded.filepath);
         const pdfData = await pdfParse(fileBuffer);
 
@@ -68,12 +103,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             embedding: embeddings[idx],
         }));
 
-        // Store in a database or cloud storage instead of file system
-        // For now, we'll just return the processed data
+        // Save memories to cache
+        const cacheDir = path.join(process.cwd(), "cache");
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+        fs.writeFileSync(path.join(cacheDir, "latest.json"), JSON.stringify(memories, null, 2));
+
         res.status(200).json({
             message: "✅ File processed successfully!",
             chunks: memories.length,
-            filename: uploaded.originalFilename || uploaded.newFilename
+            filename: filename
         });
 
         // Clean up temporary files
