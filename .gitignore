@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Upload and cache directories
+/uploads/
+/cache/
+*.pdf
+*.json

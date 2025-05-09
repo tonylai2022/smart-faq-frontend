@@ -17,6 +17,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [selectedFileNames, setSelectedFileNames] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -97,8 +99,11 @@ export default function Home() {
   // Upload PDF
   const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+    if (!files || files.length === 0) {
+      setSelectedFileNames([]);
+      return;
+    }
+    setSelectedFileNames(Array.from(files).map(f => f.name));
     setUploadStatus(t('loading'));
     const formData = new FormData();
     formData.append("file", files[0]);
@@ -117,19 +122,30 @@ export default function Home() {
     }
   };
 
-  // Clear chat history and memory
+  // Clear chat history
   const clearHistory = async () => {
-    const confirm = window.confirm(t('clearConfirm'));
+    const confirm = window.confirm(t('clearHistoryConfirm'));
     if (!confirm) return;
 
     localStorage.removeItem("chatMessages");
     setMessages([]);
+    setUploadStatus(t('historyCleared'));
+  };
+
+  // Clear uploaded files and memory
+  const clearMemory = async () => {
+    const confirm = window.confirm(t('clearMemoryConfirm'));
+    if (!confirm) return;
+
+    setUploadedFiles([]);
+    setUploadStatus(t('loading'));
 
     try {
       await fetch(`${PROXY_URL}/reset`, { method: "POST" });
       setUploadStatus(t('memoryCleared'));
     } catch (err) {
       console.error("❌ Failed to reset memory:", err);
+      setUploadStatus(t('error'));
     }
   };
 
@@ -143,24 +159,48 @@ export default function Home() {
 
         {/* Upload Area */}
         <div className="space-y-2">
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={uploadFile}
-            className="block w-full text-sm text-gray-800 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-400 file:rounded-md file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200"
-          />
+          <label className="inline-flex items-center cursor-pointer">
+            <input
+              type="file"
+              accept=".pdf"
+              multiple
+              onChange={uploadFile}
+              className="hidden"
+            />
+            <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded border border-gray-400 font-semibold hover:bg-blue-200">
+              {t('chooseFiles')}
+            </span>
+          </label>
+          <span className="ml-2 text-gray-800 align-middle">
+            {selectedFileNames.length > 0 ? selectedFileNames.join(', ') : t('noFileChosen')}
+          </span>
           {uploadStatus && (
             <div className="text-sm text-green-700">{uploadStatus}</div>
           )}
+          {uploadedFiles.length > 0 && (
+            <div className="text-sm text-gray-600">
+              {t('uploadedFiles')}: {uploadedFiles.join(', ')}
+            </div>
+          )}
         </div>
 
-        {/* Clear Button */}
-        <button
-          onClick={clearHistory}
-          className="px-4 py-2 bg-white text-red-700 border border-red-500 rounded hover:bg-red-50 transition font-semibold"
-        >
-          🗑️ {t('clearHistory')}
-        </button>
+        {/* Clear Buttons */}
+        <div className="flex space-x-4">
+          <button
+            onClick={clearMemory}
+            className="flex-1 px-4 py-3 border-2 border-red-700 text-red-700 bg-white rounded font-bold text-lg flex items-center justify-center space-x-2 hover:bg-red-50 transition"
+          >
+            <span className="text-2xl">📁</span>
+            <span>{t('clearMemory')}</span>
+          </button>
+          <button
+            onClick={clearHistory}
+            className="flex-1 px-4 py-3 border-2 border-red-700 text-red-700 bg-white rounded font-bold text-lg flex items-center justify-center space-x-2 hover:bg-red-50 transition"
+          >
+            <span className="text-2xl">🗑️</span>
+            <span>{t('clearHistory')}</span>
+          </button>
+        </div>
 
         {/* Chat Window */}
         <div className="flex flex-col space-y-3 p-4 bg-gray-100 rounded-md border border-gray-300 max-h-[400px] overflow-y-auto">

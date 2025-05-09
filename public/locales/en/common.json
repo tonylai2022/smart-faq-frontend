@@ -12,7 +12,12 @@
     "questionPlaceholder": "Type your question here...",
     "answer": "Answer",
     "noAnswer": "No answer found",
-    "clearHistory": "Clear Chat History & Memory",
-    "clearConfirm": "Are you sure you want to clear chat history and memory?",
-    "memoryCleared": "Memory cleared successfully"
+    "clearHistory": "Clear Chat History",
+    "clearMemory": "Clear Uploaded File(s)",
+    "clearHistoryConfirm": "Are you sure you want to clear all chat history?",
+    "clearMemoryConfirm": "Are you sure you want to clear all uploaded files?",
+    "memoryCleared": "Uploaded files cleared successfully",
+    "historyCleared": "Chat history cleared successfully",
+    "chooseFiles": "Choose File(s)",
+    "noFileChosen": "No file chosen"
 }

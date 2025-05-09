@@ -12,7 +12,12 @@
     "questionPlaceholder": "在此輸入您的問題...",
     "answer": "答案",
     "noAnswer": "未找到答案",
-    "clearHistory": "清除聊天記錄與記憶體",
-    "clearConfirm": "確定要清除聊天記錄與記憶體嗎？",
-    "memoryCleared": "記憶體已清除"
+    "clearHistory": "清除聊天記錄",
+    "clearMemory": "清除已上傳檔案",
+    "clearHistoryConfirm": "確定要清除所有聊天記錄嗎？",
+    "clearMemoryConfirm": "確定要清除所有已上傳檔案嗎？",
+    "memoryCleared": "已上傳檔案已清除",
+    "historyCleared": "聊天記錄已清除",
+    "chooseFiles": "選擇檔案",
+    "noFileChosen": "尚未選擇檔案"
 }
