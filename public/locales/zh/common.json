@@ -1,0 +1,18 @@
+{
+    "welcome": "歡迎使用智能問答助手",
+    "upload": "上傳文檔",
+    "search": "搜索",
+    "ask": "提問",
+    "language": "語言",
+    "loading": "載入中...",
+    "error": "發生錯誤",
+    "success": "成功",
+    "uploadSuccess": "文檔上傳成功",
+    "uploadError": "文檔上傳失敗",
+    "questionPlaceholder": "在此輸入您的問題...",
+    "answer": "答案",
+    "noAnswer": "未找到答案",
+    "clearHistory": "清除聊天記錄與記憶體",
+    "clearConfirm": "確定要清除聊天記錄與記憶體嗎？",
+    "memoryCleared": "記憶體已清除"
+}

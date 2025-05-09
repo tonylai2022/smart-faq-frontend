@@ -1,0 +1,18 @@
+{
+    "welcome": "Welcome to Smart FAQ Assistant",
+    "upload": "Upload Document",
+    "search": "Search",
+    "ask": "Ask a Question",
+    "language": "Language",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "uploadSuccess": "Document uploaded successfully",
+    "uploadError": "Error uploading document",
+    "questionPlaceholder": "Type your question here...",
+    "answer": "Answer",
+    "noAnswer": "No answer found",
+    "clearHistory": "Clear Chat History & Memory",
+    "clearConfirm": "Are you sure you want to clear chat history and memory?",
+    "memoryCleared": "Memory cleared successfully"
+}
