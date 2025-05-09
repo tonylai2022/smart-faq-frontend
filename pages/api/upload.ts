@@ -3,13 +3,14 @@ import formidable from "formidable";
 import fs from "fs";
 import path from "path";
 import pdfParse from "pdf-parse";
-import { chunkText } from "../../utils/chunkText"; 
+import { chunkText } from "../../utils/chunkText";
 import { embedTexts } from "../../utils/embedding";
 import type { Memory } from "../../utils/search_docs";
 
 export const config = { api: { bodyParser: false } };
 
 let memories: Memory[] = [];
+let uploadedFiles: string[] = [];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
@@ -34,6 +35,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(400).json({ error: "Invalid file upload" });
         }
 
+        // Add the filename to uploadedFiles array
+        uploadedFiles.push(uploaded.originalFilename || uploaded.newFilename);
+
         const fileBuffer = fs.readFileSync(uploaded.filepath);
         const pdfData = await pdfParse(fileBuffer);
 
@@ -42,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .replace(/\n{3,}/g, "\n\n")
             .trim();
 
-        const chunks = chunkText(cleanedText, 400, 50); 
+        const chunks = chunkText(cleanedText, 400, 50);
         console.log(`🔵 Chunks Preview (${chunks.length}):`);
         chunks.forEach((chunk, idx) => {
             console.log(`Chunk ${idx + 1}:`, chunk.slice(0, 30), "...");
@@ -67,4 +71,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 }
 
-export { memories };
+// Add a function to clear uploaded files
+export function clearUploadedFiles() {
+    uploadedFiles = [];
+    memories = [];
+}
+
+export { memories, uploadedFiles };
