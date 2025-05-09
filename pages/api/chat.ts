@@ -1,27 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import fs from "fs";
-import path from "path";
 import { searchDocs } from "../../utils/search_docs";
 import { embedQuestion } from "../../utils/embedding";
 import type { Memory } from "../../utils/search_docs";
+import { memories } from './upload';
 
 let conversationHistory: { role: "user" | "assistant"; content: string }[] = [];
-
-// 讀取記憶
-function loadMemories(): Memory[] {
-    try {
-        const cachePath = path.join(process.cwd(), "cache", "latest.json");
-        if (fs.existsSync(cachePath)) {
-            const data = fs.readFileSync(cachePath, "utf8");
-            return JSON.parse(data) as Memory[];
-        }
-        console.warn("⚠️ No memory cache found.");
-        return [];
-    } catch (err) {
-        console.error("❌ Failed to load memories:", err);
-        return [];
-    }
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
@@ -39,7 +22,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(500).json({ error: "❌ Missing DeepSeek API Key." });
         }
 
-        const memories = loadMemories();
         if (!memories || memories.length === 0) {
             return res.status(400).json({ error: "❌ 尚未上傳資料，請先上傳 PDF。" });
         }
@@ -58,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const queryEmbedding = await embedQuestion(prompt);
 
         const topK = 5;
-        const relatedChunks = searchDocs(queryEmbedding, memories, topK, 0.4); // 可自己調
+        const relatedChunks = searchDocs(queryEmbedding, memories, topK, 0.4);
         const relatedContext = relatedChunks.length > 0
             ? relatedChunks.join("\n\n")
             : "（找不到明確資料，請根據常識推測）";
@@ -116,7 +98,6 @@ If no relevant information exists, respond with: "No relevant information found.
         }
 
         const data = await response.json();
-        // Process the raw answer
         let rawAnswer = data.choices?.[0]?.message?.content?.trim() || "❌ No answer.";
 
         // 多層解析直到是純文字
@@ -128,7 +109,6 @@ If no relevant information exists, respond with: "No relevant information found.
                     try {
                         parsed = JSON.parse(parsed);
                     } catch {
-                        // 如果不能再 parse，代表是純文字
                         rawAnswer = parsed;
                         break;
                     }
@@ -140,9 +120,9 @@ If no relevant information exists, respond with: "No relevant information found.
 
         // 清理格式
         const cleanAnswer = rawAnswer
-            .replace(/\\n/g, '\n')    // \n 變成真換行
-            .replace(/\*\*/g, '')     // 移除粗體標記 **
-            .replace(/\s+\n/g, '\n')  // 多餘空白
+            .replace(/\\n/g, '\n')
+            .replace(/\*\*/g, '')
+            .replace(/\s+\n/g, '\n')
             .trim();
 
         const answer = cleanAnswer;

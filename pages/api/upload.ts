@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import formidable from "formidable";
 import fs from "fs";
-import path from "path";
 import pdfParse from "pdf-parse";
 import { chunkText } from "../../utils/chunkText";
 import { embedTexts } from "../../utils/embedding";
@@ -17,32 +16,10 @@ export const config = {
 
 // Use a temporary directory for file processing
 const TEMP_DIR = '/tmp';
-const FILES_LIST_PATH = path.join(process.cwd(), "cache", "files.json");
 
-function getUploadedFiles(): string[] {
-    try {
-        if (fs.existsSync(FILES_LIST_PATH)) {
-            const data = fs.readFileSync(FILES_LIST_PATH, "utf8");
-            return JSON.parse(data);
-        }
-        return [];
-    } catch (err) {
-        console.error("Failed to read files list:", err);
-        return [];
-    }
-}
-
-function saveUploadedFiles(files: string[]) {
-    try {
-        const cacheDir = path.join(process.cwd(), "cache");
-        if (!fs.existsSync(cacheDir)) {
-            fs.mkdirSync(cacheDir, { recursive: true });
-        }
-        fs.writeFileSync(FILES_LIST_PATH, JSON.stringify(files, null, 2));
-    } catch (err) {
-        console.error("Failed to save files list:", err);
-    }
-}
+// In-memory storage (will be cleared on serverless function cold start)
+let uploadedFiles: string[] = [];
+let memories: Memory[] = [];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
@@ -76,10 +53,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const filename = uploaded.originalFilename || uploaded.newFilename;
 
         // Update the files list
-        const currentFiles = getUploadedFiles();
-        if (!currentFiles.includes(filename)) {
-            currentFiles.push(filename);
-            saveUploadedFiles(currentFiles);
+        if (!uploadedFiles.includes(filename)) {
+            uploadedFiles.push(filename);
         }
 
         const fileBuffer = fs.readFileSync(uploaded.filepath);
@@ -98,17 +73,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const embeddings = await embedTexts(chunks);
 
-        const memories = chunks.map((text, idx) => ({
+        memories = chunks.map((text, idx) => ({
             text,
             embedding: embeddings[idx],
         }));
-
-        // Save memories to cache
-        const cacheDir = path.join(process.cwd(), "cache");
-        if (!fs.existsSync(cacheDir)) {
-            fs.mkdirSync(cacheDir, { recursive: true });
-        }
-        fs.writeFileSync(path.join(cacheDir, "latest.json"), JSON.stringify(memories, null, 2));
 
         res.status(200).json({
             message: "✅ File processed successfully!",
@@ -128,3 +96,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.status(500).json({ error: "Failed to process upload" });
     }
 }
+
+// Export the in-memory storage
+export { uploadedFiles, memories };
