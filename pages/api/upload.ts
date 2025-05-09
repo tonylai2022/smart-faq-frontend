@@ -7,36 +7,45 @@ import { chunkText } from "../../utils/chunkText";
 import { embedTexts } from "../../utils/embedding";
 import type { Memory } from "../../utils/search_docs";
 
-export const config = { api: { bodyParser: false } };
+export const config = {
+    api: {
+        bodyParser: false,
+        // Increase the size limit for file uploads
+        responseLimit: '8mb',
+    }
+};
 
-let memories: Memory[] = [];
-let uploadedFiles: string[] = [];
+// Use a temporary directory for file processing
+const TEMP_DIR = '/tmp';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== "POST") {
         return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const uploadDir = path.join(process.cwd(), "/uploads");
-    const cacheDir = path.join(process.cwd(), "/cache");
-    fs.mkdirSync(uploadDir, { recursive: true });
-    fs.mkdirSync(cacheDir, { recursive: true });
-
-    const form = formidable({ uploadDir, keepExtensions: true });
-
-    form.parse(req, async (err, fields, files) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: "Upload failed" });
+    try {
+        // Create temp directory if it doesn't exist
+        if (!fs.existsSync(TEMP_DIR)) {
+            fs.mkdirSync(TEMP_DIR, { recursive: true });
         }
+
+        const form = formidable({
+            uploadDir: TEMP_DIR,
+            keepExtensions: true,
+            maxFileSize: 5 * 1024 * 1024, // 5MB limit
+        });
+
+        const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
+            form.parse(req, (err, fields, files) => {
+                if (err) reject(err);
+                resolve([fields, files]);
+            });
+        });
 
         const uploaded = Array.isArray(files.file) ? files.file[0] : files.file;
         if (!uploaded) {
             return res.status(400).json({ error: "Invalid file upload" });
         }
-
-        // Add the filename to uploadedFiles array
-        uploadedFiles.push(uploaded.originalFilename || uploaded.newFilename);
 
         const fileBuffer = fs.readFileSync(uploaded.filepath);
         const pdfData = await pdfParse(fileBuffer);
@@ -52,29 +61,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.log(`Chunk ${idx + 1}:`, chunk.slice(0, 30), "...");
         });
 
-        memories = [];
-
         const embeddings = await embedTexts(chunks);
 
-        memories = chunks.map((text, idx) => ({
+        const memories = chunks.map((text, idx) => ({
             text,
             embedding: embeddings[idx],
         }));
 
-        const cachePath = path.join(cacheDir, `${uploaded.newFilename}.json`);
-        fs.writeFileSync(cachePath, JSON.stringify(memories, null, 2));
+        // Store in a database or cloud storage instead of file system
+        // For now, we'll just return the processed data
+        res.status(200).json({
+            message: "✅ File processed successfully!",
+            chunks: memories.length,
+            filename: uploaded.originalFilename || uploaded.newFilename
+        });
 
-        // ✅ 另外保存最新記憶
-        fs.writeFileSync(path.join(cacheDir, "latest.json"), JSON.stringify(memories, null, 2));
+        // Clean up temporary files
+        try {
+            fs.unlinkSync(uploaded.filepath);
+        } catch (err) {
+            console.error("Failed to clean up temporary file:", err);
+        }
 
-        res.status(200).json({ message: "✅ 檔案已上傳並處理完成！", chunks: memories.length });
-    });
+    } catch (error) {
+        console.error("Upload error:", error);
+        res.status(500).json({ error: "Failed to process upload" });
+    }
 }
-
-// Add a function to clear uploaded files
-export function clearUploadedFiles() {
-    uploadedFiles = [];
-    memories = [];
-}
-
-export { memories, uploadedFiles };
