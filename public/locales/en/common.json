@@ -19,5 +19,6 @@
     "memoryCleared": "Uploaded files cleared successfully",
     "historyCleared": "Chat history cleared successfully",
     "chooseFiles": "Choose File(s)",
-    "noFileChosen": "No file chosen"
+    "noFileChosen": "No file chosen",
+    "irrelevantQuestion": "I'm sorry, but I can only answer questions related to the content of your uploaded documents. Please ask a question about the uploaded content."
 }

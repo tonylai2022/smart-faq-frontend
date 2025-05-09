@@ -19,5 +19,6 @@
     "memoryCleared": "已上傳檔案已清除",
     "historyCleared": "聊天記錄已清除",
     "chooseFiles": "選擇檔案",
-    "noFileChosen": "尚未選擇檔案"
+    "noFileChosen": "尚未選擇檔案",
+    "irrelevantQuestion": "抱歉，我只能回答與您上傳的文檔內容相關的問題。請詢問與上傳內容相關的問題。"
 }

@@ -3,7 +3,7 @@ import formidable from "formidable";
 import fs from "fs";
 import path from "path";
 import pdfParse from "pdf-parse";
-import { chunkText } from "../../utils/chunkText"; // 記得要 ultra fine
+import { chunkText } from "../../utils/chunkText"; 
 import { embedTexts } from "../../utils/embedding";
 import type { Memory } from "../../utils/search_docs";
 

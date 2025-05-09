@@ -85,8 +85,16 @@ export default function Home() {
         }
       } else {
         const data = await res.json();
-        const answer = data.answer || t('noAnswer');
-        setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+        // Check if the response indicates the question is irrelevant
+        if (data.isIrrelevant) {
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: t('irrelevantQuestion')
+          }]);
+        } else {
+          const answer = data.answer || t('noAnswer');
+          setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+        }
       }
     } catch (err) {
       console.error("❌ Ask error:", err);
@@ -147,6 +155,7 @@ export default function Home() {
     if (!confirm) return;
 
     setUploadedFiles([]);
+    setSelectedFileNames([]);
     setUploadStatus(t('loading'));
 
     try {
@@ -188,7 +197,12 @@ export default function Home() {
           )}
           {uploadedFiles.length > 0 && (
             <div className="text-sm text-gray-600">
-              {t('uploadedFiles')}: {uploadedFiles.join(', ')}
+              <div className="font-semibold mb-1">{t('uploadedFiles')}:</div>
+              <ul className="list-disc list-inside">
+                {uploadedFiles.map((fileName, index) => (
+                  <li key={index} className="text-blue-600">{fileName}</li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
