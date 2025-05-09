@@ -4,7 +4,6 @@ import path from "path";
 import { searchDocs } from "../../utils/search_docs";
 import { embedQuestion } from "../../utils/embedding";
 import type { Memory } from "../../utils/search_docs";
-import { memories } from './upload';
 
 let conversationHistory: { role: "user" | "assistant"; content: string }[] = [];
 
