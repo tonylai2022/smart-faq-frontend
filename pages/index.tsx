@@ -105,17 +105,26 @@ export default function Home() {
     }
     setSelectedFileNames(Array.from(files).map(f => f.name));
     setUploadStatus(t('loading'));
-    const formData = new FormData();
-    formData.append("file", files[0]);
 
     try {
-      const res = await fetch(`${PROXY_URL}/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      // Upload each file sequentially
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append("file", files[i]);
 
-      const result = await res.json();
+        const res = await fetch(`${PROXY_URL}/upload`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to upload ${files[i].name}`);
+        }
+      }
+
       setUploadStatus(t('uploadSuccess'));
+      // Update the list of uploaded files
+      setUploadedFiles(prev => [...prev, ...Array.from(files).map(f => f.name)]);
     } catch (err) {
       console.error("❌ Upload error:", err);
       setUploadStatus(t('uploadError'));
